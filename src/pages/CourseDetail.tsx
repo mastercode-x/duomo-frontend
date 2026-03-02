@@ -59,6 +59,11 @@ export function CourseDetail() {
       const courseData = await moodleApi.getCourseById(id);
       const courseContent = await moodleApi.getCourseContent(id);
       
+      if (!courseData) {
+        setError('No se pudo cargar el curso');
+        return;
+      }
+      
       setCourse({
         ...courseData,
         sections: courseContent,

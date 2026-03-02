@@ -1,7 +1,7 @@
 // Servicio de autenticación en modo DEMO
 // Este servicio simula la autenticación de Moodle para pruebas
 
-import type { User, AuthResponse, UserRole } from '@/types';
+import type { User, AuthResponse } from '@/types';
 
 // Usuarios de prueba
 const DEMO_USERS: Record<string, { password: string; user: User }> = {

@@ -1,80 +1,156 @@
 // App principal del Campus Duomo LMS
 // Configuración de rutas y proveedores de contexto
 
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { MainLayout } from '@/layouts/MainLayout';
+import { Toaster } from '@/components/ui/sonner';
 
 // Páginas
 import { Login } from '@/pages/Login';
 import { ForgotPassword } from '@/pages/ForgotPassword';
-import { Dashboard } from '@/pages/Dashboard';
+import { StudentDashboard } from '@/pages/StudentDashboard';
+import { TeacherDashboard } from '@/pages/TeacherDashboard';
 import { Profile } from '@/pages/Profile';
 import { ProfileEdit } from '@/pages/ProfileEdit';
 import { Courses } from '@/pages/Courses';
 import { CourseDetail } from '@/pages/CourseDetail';
+import { Students } from '@/pages/Students';
 import { Statistics } from '@/pages/Statistics';
 import { Certificates } from '@/pages/Certificates';
+import { Notifications } from '@/pages/Notifications';
+import { Settings } from '@/pages/Settings';
+import { Grades } from '@/pages/Grades';
 
-// Componente para proteger rutas privadas
+// Dashboard que redirige según rol
+function DashboardRouter() {
+  const { isTeacher, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B9A7D]"></div>
+          <p className="text-gray-500">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (isTeacher) {
+    return <TeacherDashboard />;
+  }
+  
+  return <StudentDashboard />;
+}
+
+// Componente para proteger rutas privadas con manejo de sesión expirada
 function PrivateRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, errorCode } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B9A7D]"></div>
+          <p className="text-gray-500">Cargando...</p>
+        </div>
       </div>
     );
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+  // Si el token expiró, redirigir al login con mensaje
+  if (errorCode === 'invalidtoken' || errorCode === 'accessexception') {
+    return (
+      <Navigate 
+        to="/login" 
+        state={{ 
+          from: location.pathname,
+          message: 'Tu sesión ha expirado. Por favor, iniciá sesión nuevamente.' 
+        }} 
+        replace 
+      />
+    );
+  }
+
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" state={{ from: location.pathname }} replace />;
 }
 
 // Componente para redirigir usuarios autenticados
 function PublicRoute() {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  const from = (location.state as any)?.from || '/dashboard';
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B9A7D]"></div>
+          <p className="text-gray-500">Cargando...</p>
+        </div>
       </div>
     );
   }
 
-  return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
+  return !isAuthenticated ? <Outlet /> : <Navigate to={from} replace />;
 }
 
 // Componente para rutas de profesor
 function TeacherRoute() {
-  const { isAuthenticated, isTeacher, isLoading } = useAuth();
+  const { isAuthenticated, isTeacher, isLoading, errorCode } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B9A7D]"></div>
+          <p className="text-gray-500">Cargando...</p>
+        </div>
       </div>
     );
   }
 
+  // Si el token expiró, redirigir al login
+  if (errorCode === 'invalidtoken' || errorCode === 'accessexception') {
+    return (
+      <Navigate 
+        to="/login" 
+        state={{ 
+          from: location.pathname,
+          message: 'Tu sesión ha expirado. Por favor, iniciá sesión nuevamente.' 
+        }} 
+        replace 
+      />
+    );
+  }
+
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
   if (!isTeacher) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Acceso Denegado</h1>
-        <p className="text-gray-600 text-center max-w-md">
-          Esta página solo está disponible para instructores.
-        </p>
-        <button 
-          onClick={() => window.history.back()}
-          className="mt-4 text-amber-600 hover:text-amber-700 font-medium"
-        >
-          ← Volver
-        </button>
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Acceso Denegado</h1>
+          <p className="text-gray-600 mb-6">
+            Esta página solo está disponible para instructores.
+          </p>
+          <button 
+            onClick={() => window.history.back()}
+            className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+          >
+            ← Volver
+          </button>
+        </div>
       </div>
     );
   }
@@ -102,11 +178,11 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
           </Route>
 
-          {/* Rutas Privadas */}
+          {/* Rutas Privadas - Todos los usuarios */}
           <Route element={<PrivateRoute />}>
             <Route element={<PrivateLayout />}>
-              {/* Dashboard */}
-              <Route path="/dashboard" element={<Dashboard />} />
+              {/* Dashboard - Redirige según rol */}
+              <Route path="/dashboard" element={<DashboardRouter />} />
               
               {/* Perfil */}
               <Route path="/profile" element={<Profile />} />
@@ -116,8 +192,17 @@ function App() {
               <Route path="/courses" element={<Courses />} />
               <Route path="/courses/:courseId" element={<CourseDetail />} />
               
+              {/* Calificaciones */}
+              <Route path="/grades" element={<Grades />} />
+              
               {/* Certificados */}
               <Route path="/certificates" element={<Certificates />} />
+              
+              {/* Notificaciones */}
+              <Route path="/notifications" element={<Notifications />} />
+              
+              {/* Configuración */}
+              <Route path="/settings" element={<Settings />} />
               
               {/* Páginas en construcción */}
               <Route path="/calendar" element={<ComingSoonPage title="Calendario" />} />
@@ -128,6 +213,8 @@ function App() {
           {/* Rutas de Profesor */}
           <Route element={<TeacherRoute />}>
             <Route element={<PrivateLayout />}>
+              <Route path="/students" element={<Students />} />
+              <Route path="/students/:studentId" element={<ComingSoonPage title="Perfil del Estudiante" />} />
               <Route path="/statistics" element={<Statistics />} />
               <Route path="/courses/:courseId/stats" element={<ComingSoonPage title="Estadísticas del Curso" />} />
               <Route path="/courses/:courseId/edit" element={<ComingSoonPage title="Editar Curso" />} />
@@ -141,6 +228,7 @@ function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Router>
+      <Toaster position="top-right" richColors />
     </AuthProvider>
   );
 }
@@ -149,9 +237,9 @@ function App() {
 function ComingSoonPage({ title }: { title: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16">
-      <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-6">
+      <div className="w-24 h-24 bg-gradient-to-br from-[#8B9A7D]/20 to-[#E8927C]/20 rounded-full flex items-center justify-center mb-6">
         <svg 
-          className="w-12 h-12 text-amber-500" 
+          className="w-12 h-12 text-[#8B9A7D]" 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -170,7 +258,7 @@ function ComingSoonPage({ title }: { title: string }) {
       </p>
       <button 
         onClick={() => window.history.back()}
-        className="mt-6 text-amber-600 hover:text-amber-700 font-medium"
+        className="mt-6 px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
       >
         ← Volver
       </button>
@@ -182,14 +270,14 @@ function ComingSoonPage({ title }: { title: string }) {
 function NotFoundPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
-      <div className="text-9xl font-bold text-amber-500 mb-4">404</div>
+      <div className="text-9xl font-bold text-[#8B9A7D] mb-4">404</div>
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Página no encontrada</h1>
       <p className="text-gray-600 text-center max-w-md mb-6">
         La página que estás buscando no existe o ha sido movida.
       </p>
       <a 
         href="/dashboard"
-        className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-orange-700 transition-colors"
+        className="px-6 py-3 bg-gradient-to-r from-[#8B9A7D] to-[#6B7A5D] text-white font-medium rounded-lg hover:from-[#7A8970] hover:to-[#5A6950] transition-colors shadow-lg shadow-[#8B9A7D]/25"
       >
         Ir al Dashboard
       </a>

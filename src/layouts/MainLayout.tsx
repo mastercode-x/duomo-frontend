@@ -1,7 +1,7 @@
-// Layout principal del Campus Duomo LMS
-// Incluye sidebar, header y área de contenido
+// Layout principal del Campus Duomo LMS - Sidebar mejorado con navegación por rol
+// Incluye avatar, nombre, navegación diferenciada por rol (student/teacher)
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -14,15 +14,17 @@ import {
   LogOut,
   Menu,
   ChevronDown,
-  Calendar,
-  MessageSquare,
+  GraduationCap,
+  Users,
   Search,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
   Home
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { DuomoLogo, DuomoIcon } from '@/components/DuomoLogo';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
   DropdownMenu, 
@@ -33,7 +35,7 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/types';
 
@@ -43,46 +45,26 @@ interface NavItem {
   icon: React.ElementType;
   roles: UserRole[];
   badge?: number;
+  section?: string;
 }
 
-const navItems: NavItem[] = [
-  { 
-    label: 'Dashboard', 
-    href: '/dashboard', 
-    icon: LayoutDashboard, 
-    roles: ['student', 'editingteacher'] 
-  },
-  { 
-    label: 'Mis Cursos', 
-    href: '/courses', 
-    icon: BookOpen, 
-    roles: ['student', 'editingteacher'] 
-  },
-  { 
-    label: 'Estadísticas', 
-    href: '/statistics', 
-    icon: BarChart3, 
-    roles: ['editingteacher'] 
-  },
-  { 
-    label: 'Certificados', 
-    href: '/certificates', 
-    icon: Award, 
-    roles: ['student', 'editingteacher'] 
-  },
-  { 
-    label: 'Calendario', 
-    href: '/calendar', 
-    icon: Calendar, 
-    roles: ['student', 'editingteacher'] 
-  },
-  { 
-    label: 'Mensajes', 
-    href: '/messages', 
-    icon: MessageSquare, 
-    roles: ['student', 'editingteacher'],
-    badge: 0
-  },
+// Navegación para ESTUDIANTES
+const studentNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['student'] },
+  { label: 'Mis Cursos', href: '/courses', icon: BookOpen, roles: ['student'] },
+  { label: 'Calificaciones', href: '/grades', icon: GraduationCap, roles: ['student'] },
+  { label: 'Certificados', href: '/certificates', icon: Award, roles: ['student'] },
+  { label: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['student'], badge: 0 },
+];
+
+// Navegación para PROFESORES
+const teacherNavItems: NavItem[] = [
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['editingteacher'] },
+  { label: 'Mis Cursos', href: '/courses', icon: BookOpen, roles: ['editingteacher'] },
+  { label: 'Mis Estudiantes', href: '/students', icon: Users, roles: ['editingteacher'] },
+  { label: 'Estadísticas', href: '/statistics', icon: BarChart3, roles: ['editingteacher'] },
+  { label: 'Calificaciones', href: '/grades', icon: GraduationCap, roles: ['editingteacher'] },
+  { label: 'Notificaciones', href: '/notifications', icon: Bell, roles: ['editingteacher'], badge: 0 },
 ];
 
 interface MainLayoutProps {
@@ -96,6 +78,12 @@ export function MainLayout({ children }: MainLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Cargar contador de notificaciones
+  useEffect(() => {
+    setUnreadCount(2);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -109,200 +97,134 @@ export function MainLayout({ children }: MainLayoutProps) {
     }
   };
 
-  // Filtrar items de navegación según rol
-  const filteredNavItems = navItems.filter(item => {
-    if (isTeacher) return item.roles.includes('editingteacher');
-    if (isStudent) return item.roles.includes('student');
-    return false;
-  });
+  // Seleccionar items de navegación según rol
+  const navItems = isTeacher ? teacherNavItems : studentNavItems;
 
   const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getRoleLabel = () => {
+    if (isTeacher) return 'Instructor';
+    if (isStudent) return 'Estudiante';
+    return 'Usuario';
+  };
+
+  const NavItemComponent = ({ item }: { item: NavItem }) => {
+    const isActive = location.pathname === item.href || 
+                    location.pathname.startsWith(`${item.href}/`);
+    return (
+      <Link
+        to={item.href}
+        onClick={() => setIsMobileMenuOpen(false)}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
+          isActive 
+            ? "bg-gradient-to-r from-[#8B9A7D] to-[#7A8970] text-white shadow-md" 
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+        )}
+        title={!isSidebarOpen ? item.label : undefined}
+      >
+        <item.icon className={cn(
+          "w-5 h-5 flex-shrink-0 transition-colors",
+          isActive ? "text-white" : "text-gray-400 group-hover:text-gray-600"
+        )} />
+        {isSidebarOpen && (
+          <>
+            <span className="flex-1 truncate">{item.label}</span>
+            {item.badge !== undefined && item.badge > 0 && (
+              <Badge className="bg-red-500 text-white text-xs flex-shrink-0 border-0">
+                {item.badge}
+              </Badge>
+            )}
+          </>
+        )}
+      </Link>
+    );
   };
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b">
-        <DuomoLogo className="h-8 w-auto" />
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-100">
+        <div className="w-10 h-10 bg-gradient-to-br from-[#8B9A7D] to-[#6B7A5D] rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
+          <Sparkles className="w-5 h-5 text-white" />
+        </div>
+        {isSidebarOpen && (
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-gray-900 truncate">Campus Duomo</p>
+            <p className="text-xs text-gray-500">LMS</p>
+          </div>
+        )}
       </div>
 
-      {/* User Info */}
-      <div className="px-4 py-4 border-b">
+      {/* User Info - Avatar y nombre */}
+      <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback className="bg-[#8B9A7F] text-white">
-              {user?.fullname ? getInitials(user.fullname) : 'U'}
+          <Avatar className="h-12 w-12 flex-shrink-0 border-2 border-white shadow-md">
+            <AvatarImage src={user?.profileimageurl} alt={user?.fullname} />
+            <AvatarFallback className="bg-gradient-to-br from-[#8B9A7D] to-[#6B7A5D] text-white font-medium">
+              {getInitials(user?.fullname || '')}
             </AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.fullname}
-            </p>
-            <p className="text-xs text-gray-500 capitalize">
-              {isTeacher ? 'Instructor' : 'Estudiante'}
-            </p>
-          </div>
+          {isSidebarOpen && (
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <p className="font-semibold text-gray-900 truncate">
+                {user?.fullname}
+              </p>
+              <Badge variant="secondary" className="text-xs mt-1 bg-[#8B9A7D]/10 text-[#8B9A7D] border-0">
+                {getRoleLabel()}
+              </Badge>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {filteredNavItems.map((item) => {
-          const isActive = location.pathname === item.href || 
-                          location.pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                isActive 
-                  ? "bg-[#8B9A7F] text-white" 
-                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-              )}
-            >
-              <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "text-gray-500")} />
-              <span className="flex-1">{item.label}</span>
-              {item.badge !== undefined && item.badge > 0 && (
-                <Badge variant="secondary" className="bg-red-100 text-red-700 text-xs">
-                  {item.badge}
-                </Badge>
-              )}
-            </Link>
-          );
-        })}
+        {navItems.map((item) => (
+          <NavItemComponent key={item.href} item={item} />
+        ))}
       </nav>
 
       {/* Bottom Actions */}
-      <div className="px-3 py-4 border-t space-y-1">
+      <div className="px-3 py-4 border-t border-gray-100 space-y-1">
         <Link
-          to="/profile"
+          to="/settings"
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-            location.pathname === '/profile'
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group",
+            location.pathname === '/settings'
               ? "bg-gray-100 text-gray-900"
-              : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
           )}
+          title={!isSidebarOpen ? 'Configuración' : undefined}
         >
-          <User className="w-5 h-5 text-gray-500" />
-          <span>Mi Perfil</span>
+          <Settings className="w-5 h-5 text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+          {isSidebarOpen && <span>Configuración</span>}
         </Link>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-200"
+          title={!isSidebarOpen ? 'Cerrar Sesión' : undefined}
         >
-          <LogOut className="w-5 h-5" />
-          <span>Cerrar Sesión</span>
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {isSidebarOpen && <span>Cerrar Sesión</span>}
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50/50">
       {/* Desktop Sidebar */}
       <aside 
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-white border-r transition-all duration-300 hidden lg:block",
-          isSidebarOpen ? "w-64" : "w-20"
+          "fixed left-0 top-0 z-40 h-screen bg-white border-r border-gray-200 transition-all duration-300 hidden lg:block shadow-sm",
+          isSidebarOpen ? "w-72" : "w-20"
         )}
       >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center gap-3 px-4 py-5 border-b">
-            {isSidebarOpen ? (
-              <DuomoLogo className="h-8 w-auto" />
-            ) : (
-              <DuomoIcon className="h-8 w-8" />
-            )}
-          </div>
-
-          {/* User Info */}
-          <div className="px-4 py-4 border-b">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10 flex-shrink-0">
-                <AvatarFallback className="bg-[#8B9A7F] text-white">
-                  {user?.fullname ? getInitials(user.fullname) : 'U'}
-                </AvatarFallback>
-              </Avatar>
-              {isSidebarOpen && (
-                <div className="flex-1 min-w-0 overflow-hidden">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {user?.fullname}
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize truncate">
-                    {isTeacher ? 'Instructor' : 'Estudiante'}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {filteredNavItems.map((item) => {
-              const isActive = location.pathname === item.href || 
-                              location.pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                    isActive 
-                      ? "bg-[#8B9A7F] text-white" 
-                      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                  )}
-                  title={!isSidebarOpen ? item.label : undefined}
-                >
-                  <item.icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "text-white" : "text-gray-500")} />
-                  {isSidebarOpen && (
-                    <>
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge !== undefined && item.badge > 0 && (
-                        <Badge variant="secondary" className="bg-red-100 text-red-700 text-xs flex-shrink-0">
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Bottom Actions */}
-          <div className="px-3 py-4 border-t space-y-1">
-            <Link
-              to="/profile"
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                location.pathname === '/profile'
-                  ? "bg-gray-100 text-gray-900"
-                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-              )}
-              title={!isSidebarOpen ? 'Mi Perfil' : undefined}
-            >
-              <User className="w-5 h-5 text-gray-500 flex-shrink-0" />
-              {isSidebarOpen && <span>Mi Perfil</span>}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-200"
-              title={!isSidebarOpen ? 'Cerrar Sesión' : undefined}
-            >
-              <LogOut className="w-5 h-5 flex-shrink-0" />
-              {isSidebarOpen && <span>Cerrar Sesión</span>}
-            </button>
-          </div>
-        </div>
+        <SidebarContent />
       </aside>
 
       {/* Mobile Sidebar */}
@@ -314,26 +236,22 @@ export function MainLayout({ children }: MainLayoutProps) {
 
       {/* Main Content */}
       <div className={cn(
-        "transition-all duration-300",
-        isSidebarOpen ? "lg:ml-64" : "lg:ml-20"
+        "transition-all duration-300 min-h-screen",
+        isSidebarOpen ? "lg:ml-72" : "lg:ml-20"
       )}>
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-white border-b shadow-sm">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm">
           <div className="flex items-center justify-between h-16 px-4 lg:px-6">
             {/* Left: Mobile Menu & Sidebar Toggle */}
             <div className="flex items-center gap-3">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="lg:hidden"
-                    onClick={() => setIsMobileMenuOpen(true)}
-                  >
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-              </Sheet>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="lg:hidden"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               
               <Button
                 variant="ghost"
@@ -341,15 +259,15 @@ export function MainLayout({ children }: MainLayoutProps) {
                 className="hidden lg:flex"
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               >
-                <Menu className="h-5 w-5" />
+                {isSidebarOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
               </Button>
 
               {/* Breadcrumb */}
               <nav className="hidden md:flex items-center gap-2 text-sm text-gray-500">
-                <Link to="/dashboard" className="hover:text-gray-900">
+                <Link to="/dashboard" className="hover:text-gray-900 transition-colors">
                   <Home className="w-4 h-4" />
                 </Link>
-                <span>/</span>
+                <ChevronRight className="w-4 h-4" />
                 <span className="text-gray-900 font-medium capitalize">
                   {location.pathname.split('/')[1] || 'Dashboard'}
                 </span>
@@ -362,8 +280,8 @@ export function MainLayout({ children }: MainLayoutProps) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   type="search"
-                  placeholder="Buscar cursos, módulos..."
-                  className="pl-10 w-full border-gray-300 focus:border-[#8B9A7F] focus:ring-[#8B9A7F]"
+                  placeholder="Buscar cursos..."
+                  className="pl-10 w-full bg-gray-100 border-0 focus:bg-white focus:ring-2 focus:ring-[#8B9A7D]/20 transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -373,43 +291,48 @@ export function MainLayout({ children }: MainLayoutProps) {
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
               {/* Notifications */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <div className="py-8 text-center text-gray-500">
-                    <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No hay notificaciones nuevas</p>
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                onClick={() => navigate('/notifications')}
+              >
+                <Bell className="h-5 w-5 text-gray-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                )}
+              </Button>
 
               {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2">
+                  <Button variant="ghost" className="flex items-center gap-2 hover:bg-gray-100">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-[#8B9A7F] text-white text-xs">
-                        {user?.fullname ? getInitials(user.fullname) : 'U'}
+                      <AvatarImage src={user?.profileimageurl} alt={user?.fullname} />
+                      <AvatarFallback className="bg-gradient-to-br from-[#8B9A7D] to-[#6B7A5D] text-white text-xs">
+                        {getInitials(user?.fullname || '')}
                       </AvatarFallback>
                     </Avatar>
-                    <ChevronDown className="h-4 w-4 hidden sm:block" />
+                    <div className="hidden sm:block text-left">
+                      <p className="text-sm font-medium text-gray-900">{user?.fullname}</p>
+                      <p className="text-xs text-gray-500">{getRoleLabel()}</p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 hidden sm:block text-gray-400" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium">{user?.fullname}</p>
+                      <p className="text-xs text-gray-500">{user?.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate('/profile')}>
                     <User className="mr-2 h-4 w-4" />
-                    Perfil
+                    Mi Perfil
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/profile/edit')}>
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
                     <Settings className="mr-2 h-4 w-4" />
                     Configuración
                   </DropdownMenuItem>

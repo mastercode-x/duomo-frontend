@@ -174,23 +174,14 @@ export function ProfileEdit() {
         return;
       }
 
-      // Cambiar contraseña
-      const result = await moodleApi.changePassword(
-        user?.id || 0,
-        passwordData.currentPassword,
-        passwordData.newPassword
-      );
-
-      if (result) {
-        setSuccess('Contraseña actualizada correctamente');
-        setPasswordData({
-          currentPassword: '',
-          newPassword: '',
-          confirmPassword: '',
-        });
-      } else {
-        setError('No se pudo cambiar la contraseña. Contacta al administrador.');
-      }
+      // Cambiar contraseña - redirigir a Moodle
+      window.open('https://campus.duomo.com.ar/login/change_password.php', '_blank');
+      setSuccess('Serás redirigido a Moodle para cambiar tu contraseña');
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
     } catch (err: any) {
       setError(err.message || 'Error al cambiar la contraseña');
     } finally {
@@ -218,10 +209,11 @@ export function ProfileEdit() {
       setIsSaving(true);
       setError(null);
       
-      await moodleApi.uploadUserPicture(user?.id || 0, file);
-      
-      setSuccess('Imagen de perfil actualizada');
-      await loadUserData();
+      // Subida de imagen no implementada - usar Moodle nativo
+      setError('La subida de imágenes debe hacerse desde Moodle. Serás redirigido.');
+      setTimeout(() => {
+        window.open('https://campus.duomo.com.ar/user/edit.php', '_blank');
+      }, 2000);
     } catch (err: any) {
       setError(err.message || 'Error al subir la imagen');
     } finally {

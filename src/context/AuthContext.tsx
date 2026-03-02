@@ -1,65 +1,92 @@
 // Contexto de Autenticación para el Campus Duomo LMS
-// Maneja el estado de autenticación, roles y permisos
+// Maneja el estado de autenticación, roles y permisos - Conexión Real a Moodle
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { User, UserRole, AuthResponse } from '@/types';
-import { moodleApi } from '@/services/moodleApi';
+import { moodleApi, type MoodleErrorCode } from '@/services/moodleApi';
 import { demoAuth } from '@/services/demoAuth';
+import { toast } from 'sonner';
 
 // Modo de autenticación: 'demo' o 'moodle'
 const AUTH_MODE = import.meta.env.VITE_AUTH_MODE || 'demo';
 
-// Roles permitidos en la interfaz personalizada
-const ALLOWED_ROLES: UserRole[] = ['student', 'editingteacher'];
+// ============================================
+// TIPOS
+// ============================================
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  errorCode: MoodleErrorCode | null;
+  isStudent: boolean;
+  isTeacher: boolean;
+  isAdmin: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   hasRole: (roles: UserRole[]) => boolean;
-  isStudent: boolean;
-  isTeacher: boolean;
   canAccess: (allowedRoles: UserRole[]) => boolean;
   clearError: () => void;
   authMode: string;
+  retryAuth: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+// ============================================
+// CONTEXT
+// ============================================
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// ============================================
+// PROVIDER
+// ============================================
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<MoodleErrorCode | null>(null);
 
   // Verificar sesión al iniciar
   useEffect(() => {
     checkAuth();
   }, []);
 
+  // ============================================
+  // VERIFICACIÓN DE AUTENTICACIÓN
+  // ============================================
+
   const checkAuth = async () => {
     try {
       setIsLoading(true);
+      setError(null);
+      setErrorCode(null);
       
       if (AUTH_MODE === 'demo') {
         // En modo demo, verificar si hay usuario en localStorage
         const savedUser = localStorage.getItem('demo_user');
         if (savedUser) {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
-          setIsAuthenticated(true);
+          try {
+            const parsedUser = JSON.parse(savedUser);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+          } catch (e) {
+            console.error('Error al parsear usuario demo:', e);
+            localStorage.removeItem('demo_user');
+          }
         }
         setIsLoading(false);
         return;
       }
       
+      // Modo Moodle real
       const token = localStorage.getItem('moodle_token');
       
       if (!token) {
@@ -68,28 +95,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       // Verificar token válido obteniendo información del usuario
-      const userInfo = await moodleApi.getCurrentUser();
+      const userProfile = await moodleApi.getUserProfile();
       
-      // Obtener perfil completo
-      const fullProfile = await moodleApi.getUserProfile(userInfo.id);
-      
-      // Verificar si el usuario tiene un rol permitido
-      const hasAllowedRole = fullProfile.roles?.some(role => 
-        ALLOWED_ROLES.includes(role as UserRole)
-      );
-
-      if (!hasAllowedRole) {
-        // Usuario no tiene rol permitido, cerrar sesión
-        await moodleApi.logout();
-        setError('No tienes permisos para acceder a esta interfaz. Contacta al administrador.');
-        setIsLoading(false);
-        return;
-      }
-
-      setUser(fullProfile);
+      setUser(userProfile);
       setIsAuthenticated(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al verificar autenticación:', err);
+      
+      // Manejar errores específicos
+      if (err.errorcode === 'invalidtoken') {
+        setError('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+        setErrorCode('invalidtoken');
+      } else if (err.errorcode === 'network_error') {
+        setError('Error de conexión. Verifica tu conexión a internet.');
+        setErrorCode('network_error');
+      } else if (err.errorcode === 'timeout') {
+        setError('La solicitud tardó demasiado. Intenta nuevamente.');
+        setErrorCode('timeout');
+      } else {
+        setError(err.message || 'Error al verificar autenticación');
+        setErrorCode(err.errorcode || 'unknown');
+      }
+      
       // Token inválido, limpiar
       moodleApi.logout();
     } finally {
@@ -97,10 +124,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // ============================================
+  // LOGIN
+  // ============================================
+
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
       setError(null);
+      setErrorCode(null);
 
       let response: AuthResponse;
 
@@ -114,22 +146,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (response.error) {
         setError(response.error);
+        setErrorCode(response.errorcode as MoodleErrorCode);
+        toast.error(response.error);
         return false;
       }
 
       if (!response.user) {
         setError('Error al obtener información del usuario');
-        return false;
-      }
-
-      // Verificar si el usuario tiene un rol permitido
-      const hasAllowedRole = response.user.roles?.some(role => 
-        ALLOWED_ROLES.includes(role as UserRole)
-      );
-
-      if (!hasAllowedRole) {
-        await logout();
-        setError('No tienes permisos para acceder a esta interfaz. Contacta al administrador.');
+        setErrorCode('unknown');
+        toast.error('Error al obtener información del usuario');
         return false;
       }
 
@@ -141,14 +166,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setUser(response.user);
       setIsAuthenticated(true);
+      
+      const roleLabel = response.user.roles?.includes('editingteacher') ? 'Profesor' : 'Estudiante';
+      toast.success(`¡Bienvenido, ${response.user.firstname}! (${roleLabel})`);
+      
       return true;
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión');
+      console.error('Error en login:', err);
+      const errorMsg = err.message || 'Error al iniciar sesión';
+      setError(errorMsg);
+      setErrorCode(err.errorcode || 'unknown');
+      toast.error(errorMsg);
       return false;
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  // ============================================
+  // LOGOUT
+  // ============================================
 
   const logout = useCallback(async () => {
     try {
@@ -165,12 +202,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
       setIsAuthenticated(false);
       setError(null);
+      setErrorCode(null);
+      toast.info('Sesión cerrada correctamente');
     } catch (err) {
       console.error('Error al cerrar sesión:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  // ============================================
+  // REINTENTAR AUTENTICACIÓN
+  // ============================================
+
+  const retryAuth = useCallback(async () => {
+    await checkAuth();
+  }, []);
+
+  // ============================================
+  // REFRESCAR USUARIO
+  // ============================================
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const userProfile = await moodleApi.getUserProfile();
+      setUser(userProfile);
+    } catch (err) {
+      console.error('Error al refrescar usuario:', err);
+    }
+  }, []);
+
+  // ============================================
+  // HELPERS DE ROLES
+  // ============================================
 
   const hasRole = useCallback((roles: UserRole[]): boolean => {
     if (!user?.roles) return false;
@@ -185,6 +249,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return user?.roles?.includes('editingteacher') || false;
   }, [user]);
 
+  const isAdmin = useCallback((): boolean => {
+    return user?.roles?.includes('admin') || false;
+  }, [user]);
+
   const canAccess = useCallback((allowedRoles: UserRole[]): boolean => {
     if (!user?.roles) return false;
     return user.roles.some(role => allowedRoles.includes(role as UserRole));
@@ -192,21 +260,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const clearError = useCallback(() => {
     setError(null);
+    setErrorCode(null);
   }, []);
+
+  // ============================================
+  // VALUE
+  // ============================================
 
   const value: AuthContextType = {
     user,
     isAuthenticated,
     isLoading,
     error,
+    errorCode,
+    isStudent: isStudent(),
+    isTeacher: isTeacher(),
+    isAdmin: isAdmin(),
     login,
     logout,
     hasRole,
-    isStudent: isStudent(),
-    isTeacher: isTeacher(),
     canAccess,
     clearError,
     authMode: AUTH_MODE,
+    retryAuth,
+    refreshUser,
   };
 
   return (
@@ -216,6 +293,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 }
 
+// ============================================
+// HOOK
+// ============================================
+
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -224,7 +305,10 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-// Hook para proteger rutas por rol
+// ============================================
+// HOOK PARA PROTEGER RUTAS
+// ============================================
+
 export function useRoleGuard(allowedRoles: UserRole[]) {
   const { canAccess, isLoading, isAuthenticated } = useAuth();
   
@@ -235,7 +319,10 @@ export function useRoleGuard(allowedRoles: UserRole[]) {
   };
 }
 
-// Componente HOC para proteger rutas
+// ============================================
+// COMPONENTE HOC PARA PROTEGER RUTAS
+// ============================================
+
 interface WithRoleProtectionProps {
   allowedRoles: UserRole[];
   fallback?: ReactNode;

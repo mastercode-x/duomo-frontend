@@ -28,6 +28,7 @@ export interface User {
   roles: UserRole[];
   preferences?: UserPreference[];
   customfields?: CustomField[];
+  enrolledCourses?: Course[];
 }
 
 export interface UserPreference {
@@ -257,13 +258,17 @@ export interface GradeItem {
 export interface Certificate {
   id: number;
   name: string;
+  course: string;
   courseid?: number;
   coursename?: string;
   templateid?: number;
   timecreated?: number;
   timemodified?: number;
   issuedate?: number;
+  dateissued?: string;
+  expirationdate?: string;
   code?: string;
+  status?: string;
   downloadurl?: string;
   previewurl?: string;
 }
@@ -288,7 +293,7 @@ export interface Activity {
 }
 
 export interface Notification {
-  id: number;
+  id: string | number;
   useridfrom?: number;
   useridto?: number;
   subject?: string;
@@ -303,6 +308,12 @@ export interface Notification {
   component?: string;
   eventtype?: string;
   customdata?: string;
+  // Campos adicionales para notificaciones construidas
+  type?: 'grade' | 'assignment' | 'message' | 'achievement' | 'system';
+  title?: string;
+  message?: string;
+  timestamp?: number;
+  link?: string;
 }
 
 export interface Event {
@@ -322,6 +333,7 @@ export interface Event {
   uuid?: string;
   sequence?: number;
   subscriptionid?: number;
+  url?: string;
 }
 
 export interface Tag {
