@@ -6,6 +6,7 @@ import type {
   Notification, Event, AuthResponse
 } from '@/types';
 import { demoAuth } from './demoAuth';
+import { detectRolesFromMultipleSources } from './roleDetection';
 
 // ============================================
 // CONFIGURACIÓN DE MOODLE
@@ -346,8 +347,14 @@ class MoodleApiClient {
           userid: numericUserId
         });
 
-        // Detectar roles basado en los cursos
-        const roles = this.detectRolesFromCourses(userCourses);
+        // Detectar roles usando 3 métodos en paralelo
+        // Si CUALQUIERA detecta teacher -> rol = teacher
+        const roleDetectionResult = await detectRolesFromMultipleSources(
+          numericUserId,
+          userCourses,
+          (wsfunction, params) => this.request(wsfunction, params)
+        );
+        const roles = roleDetectionResult.roles;
 
         // Paso 5: Obtener información completa del usuario
         const userInfo = await this.getUserInfo(numericUserId);
@@ -406,41 +413,7 @@ class MoodleApiClient {
   // DETECCIÓN DE ROLES
   // ============================================
 
-  private detectRolesFromCourses(courses: any[]): ('student' | 'editingteacher' | 'admin' | 'supervisor')[] {
-    const roles = new Set<'student' | 'editingteacher' | 'admin' | 'supervisor'>();
-    
-    // Validación defensiva
-    if (!Array.isArray(courses) || courses.length === 0) {
-      roles.add('student');
-      return Array.from(roles);
-    }
 
-    let hasTeacherRole = false;
-
-    courses.forEach(course => {
-      if (course.roles && Array.isArray(course.roles)) {
-        course.roles.forEach((role: any) => {
-          const roleShortname = role.shortname || role;
-          if (roleShortname === 'editingteacher' || roleShortname === 'teacher') {
-            roles.add('editingteacher');
-            hasTeacherRole = true;
-          } else if (roleShortname === 'student') {
-            roles.add('student');
-          } else if (roleShortname === 'manager' || roleShortname === 'coursecreator') {
-            roles.add('editingteacher');
-            hasTeacherRole = true;
-          }
-        });
-      }
-    });
-
-    // Si no se detectó ningún rol de teacher, asumimos student
-    if (!hasTeacherRole && roles.size === 0) {
-      roles.add('student');
-    }
-
-    return Array.from(roles);
-  }
 
   // ============================================
   // USUARIOS
@@ -487,7 +460,14 @@ class MoodleApiClient {
 
     const userInfo = await this.getUserInfo(id);
     const courses = await this.getUserCourses(id);
-    const roles = this.detectRolesFromCourses(courses);
+    
+    // Detectar roles usando 3 métodos en paralelo
+    const roleDetectionResult = await detectRolesFromMultipleSources(
+      id,
+      courses,
+      (wsfunction, params) => this.request(wsfunction, params)
+    );
+    const roles = roleDetectionResult.roles;
 
     return {
       ...userInfo,
@@ -584,12 +564,19 @@ class MoodleApiClient {
 
   async getAllCourses(): Promise<Course[]> {
     try {
-      const data = await this.request<any[]>('core_course_get_courses');
+      // Usar core_course_get_courses_by_field con field id y valor vacío no funciona para listar todos
+      // Pero para un usuario normal, core_enrol_get_users_courses es lo que realmente importa.
+      // Si core_course_get_courses falla, intentamos obtener solo los del usuario.
+      try {
+        const data = await this.request<any[]>('core_course_get_courses');
+        if (Array.isArray(data)) {
+          return data.map(course => this.transformCourse(course));
+        }
+      } catch (e) {
+        console.warn('core_course_get_courses falló, usando fallback a cursos del usuario');
+      }
       
-      // Validación defensiva
-      if (!Array.isArray(data)) return [];
-      
-      return data.map(course => this.transformCourse(course));
+      return this.getUserCourses();
     } catch (error) {
       console.warn('Error al obtener todos los cursos:', error);
       return [];
@@ -616,18 +603,22 @@ class MoodleApiClient {
 
   async getCourseById(courseid: number): Promise<CourseDetail | null> {
     try {
-      const data = await this.request<any[]>('core_course_get_courses', {
-        'options[ids][0]': courseid,
+      // Usar core_course_get_courses_by_field en lugar de core_course_get_courses
+      // porque core_course_get_courses devuelve "nopermissions" para usuarios no-admin
+      const courseInfo = await this.request<any>('core_course_get_courses_by_field', {
+        field: 'id',
+        value: courseid
       });
       
       // Validación defensiva
-      if (!Array.isArray(data) || data.length === 0) {
+      if (!courseInfo || !courseInfo.courses || !Array.isArray(courseInfo.courses) || courseInfo.courses.length === 0) {
         return null;
       }
       
+      // Obtener contenido/módulos del curso
       const contents = await this.getCourseContent(courseid);
       
-      return this.transformCourseDetail(data[0], contents);
+      return this.transformCourseDetail(courseInfo.courses[0], contents);
     } catch (error) {
       console.warn('Error al obtener curso por ID:', error);
       return null;
@@ -1091,9 +1082,13 @@ class MoodleApiClient {
 
   async getCourseStatistics(courseid: number): Promise<any> {
     try {
-      const courses = await this.request<any[]>('core_course_get_courses', {
-        'options[ids][0]': courseid,
+      // Usar core_course_get_courses_by_field en lugar de core_course_get_courses
+      const courseInfo = await this.request<any>('core_course_get_courses_by_field', {
+        field: 'id',
+        value: courseid
       });
+      
+      const courses = courseInfo?.courses;
       
       // Validación defensiva
       if (!Array.isArray(courses) || courses.length === 0) {
