@@ -196,8 +196,6 @@ export interface CourseSetting {
 }
 
 export interface Grade {
-  userid?: number;
-  username?: string;
   courseid?: number;
   coursename?: string;
   grade?: number;
@@ -491,6 +489,3 @@ export interface ThemeConfig {
   siteName: string;
   footerText?: string;
 }
-
-
-// flavor

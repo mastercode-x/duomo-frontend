@@ -532,14 +532,6 @@ class MoodleApiClient {
     if (user.address) params['users[0][address]'] = user.address;
     if (user.institution) params['users[0][institution]'] = user.institution;
     if (user.department) params['users[0][department]'] = user.department;
-    
-    // Campos personalizados
-    if (user.customfields && Array.isArray(user.customfields)) {
-      user.customfields.forEach((field, index) => {
-        params[`users[0][customfields][${index}][type]`] = field.shortname;
-        params[`users[0][customfields][${index}][value]`] = field.value;
-      });
-    }
 
     await this.post('core_user_update_users', params);
     return true;
@@ -611,36 +603,22 @@ class MoodleApiClient {
 
   async getCourseById(courseid: number): Promise<CourseDetail | null> {
     try {
-      // IMPORTANTE: NO usar core_course_get_courses_by_field (devuelve invalidresponse)
-      // Los datos del curso ya estan en memoria desde core_enrol_get_users_courses
-      // Obtener solo el contenido/modulos del curso
-      const contents = await this.getCourseContent(courseid);
-      
-      // Obtener datos del usuario para buscar el curso en su lista
-      const userId = this.getUserId();
-      if (!userId) {
-        console.warn('No hay usuario autenticado');
-        return null;
-      }
-      
-      // Obtener cursos del usuario para encontrar el curso por ID
-      const userCourses = await this.request<any[]>('core_enrol_get_users_courses', {
-        userid: userId
+      // Usar core_course_get_courses_by_field en lugar de core_course_get_courses
+      // porque core_course_get_courses devuelve "nopermissions" para usuarios no-admin
+      const courseInfo = await this.request<any>('core_course_get_courses_by_field', {
+        field: 'id',
+        value: courseid
       });
       
-      if (!Array.isArray(userCourses)) {
+      // Validación defensiva
+      if (!courseInfo || !courseInfo.courses || !Array.isArray(courseInfo.courses) || courseInfo.courses.length === 0) {
         return null;
       }
       
-      // Buscar el curso en la lista
-      const courseData = userCourses.find(c => c.id === courseid);
-      if (!courseData) {
-        console.warn(`Curso ${courseid} no encontrado en cursos del usuario`);
-        return null;
-      }
+      // Obtener contenido/módulos del curso
+      const contents = await this.getCourseContent(courseid);
       
-      // Transformar con los datos del curso + contenidos
-      return this.transformCourseDetail(courseData, contents);
+      return this.transformCourseDetail(courseInfo.courses[0], contents);
     } catch (error) {
       console.warn('Error al obtener curso por ID:', error);
       return null;
@@ -717,52 +695,7 @@ class MoodleApiClient {
   }
 
   // ============================================
-  // MENSAJERÍA
-  // ============================================
-
-  async getConversations(userid?: number): Promise<any[]> {
-    const currentUserId = userid || this.getUserId();
-    if (!currentUserId) return [];
-    try {
-      const data = await this.request<any>('core_message_get_conversations', { userid: currentUserId });
-      return data.conversations || [];
-    } catch (error) {
-      console.warn('Error al obtener conversaciones:', error);
-      return [];
-    }
-  }
-
-  async getMessages(conversationid: number): Promise<any[]> {
-    const currentUserId = this.getUserId();
-    if (!currentUserId) return [];
-    try {
-      const data = await this.request<any>('core_message_get_conversation_messages', { 
-        currentuserid: currentUserId,
-        convid: conversationid
-      });
-      return data.messages || [];
-    } catch (error) {
-      console.warn('Error al obtener mensajes:', error);
-      return [];
-    }
-  }
-
-  async sendMessage(conversationid: number, text: string): Promise<any> {
-    const currentUserId = this.getUserId();
-    if (!currentUserId) return null;
-    try {
-      return await this.request<any>('core_message_send_messages_to_conversation', {
-        conversationid,
-        messages: [{ text }]
-      });
-    } catch (error) {
-      console.error('Error al enviar mensaje:', error);
-      throw error;
-    }
-  }
-
-  // ============================================
-  // NOTIFICACIONES
+  // CALIFICACIONES
   // ============================================
 
   async getUserGrades(courseid?: number, userid?: number): Promise<Grade[]> {
@@ -1500,7 +1433,6 @@ class MoodleApiClient {
           completion: mod.completion,
           completiondata: mod.completiondata,
           dates: mod.dates,
-          contents: Array.isArray(mod.contents) ? mod.contents : [],
         })) : [],
       })),
     };

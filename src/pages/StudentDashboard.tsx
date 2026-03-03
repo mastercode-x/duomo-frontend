@@ -7,6 +7,8 @@ import {
   Award, 
   TrendingUp, 
   Clock, 
+  FileText,
+  Calendar,
   ChevronRight,
   Sparkles
 } from 'lucide-react';
@@ -24,6 +26,7 @@ interface DashboardData {
   courses: Course[];
   grades: Grade[];
   certificates: Certificate[];
+  upcomingAssignments: any[];
   stats: {
     totalCourses: number;
     completedCourses: number;
@@ -62,6 +65,17 @@ export function StudentDashboard() {
     return 'Buenas noches';
   };
 
+  const formatDate = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    const now = new Date();
+    const diffDays = Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Hoy';
+    if (diffDays === 1) return 'Mañana';
+    if (diffDays < 7) return `En ${diffDays} días`;
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  };
+
   if (isLoading) {
     return <StudentDashboardSkeleton />;
   }
@@ -77,7 +91,7 @@ export function StudentDashboard() {
     );
   }
 
-  const { courses, grades, certificates, stats } = data;
+  const { courses, grades, certificates, upcomingAssignments, stats } = data;
 
   // Cursos en progreso (no completados)
   const inProgressCourses = Array.isArray(courses) 
@@ -203,9 +217,6 @@ export function StudentDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-gray-900 truncate">{course.fullname}</h4>
-                        {course.summary && (
-                          <p className="text-xs text-gray-500 line-clamp-2 mt-0.5" dangerouslySetInnerHTML={{ __html: course.summary }} />
-                        )}
                         <div className="flex items-center gap-2 mt-1">
                           <Progress value={course.progress || 0} className="h-2 w-24" />
                           <span className="text-xs text-gray-500">{course.progress || 0}%</span>
@@ -281,6 +292,39 @@ export function StudentDashboard() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Próximas entregas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#8B9A7D]" />
+                Próximas Entregas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!Array.isArray(upcomingAssignments) || upcomingAssignments.length === 0 ? (
+                <div className="text-center py-6">
+                  <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No hay entregas próximas</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingAssignments.slice(0, 5).map((assignment) => (
+                    <div key={assignment.id} className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                      <FileText className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">{assignment.name}</p>
+                        <p className="text-xs text-gray-500">{assignment.coursename}</p>
+                        <Badge variant="outline" className="mt-1 text-xs border-amber-300 text-amber-700">
+                          {formatDate(assignment.duedate)}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Certificados */}
           <Card>
             <CardHeader>
@@ -358,6 +402,7 @@ function StudentDashboardSkeleton() {
           </Card>
         </div>
         <div className="space-y-4">
+          <Skeleton className="h-48 w-full" />
           <Skeleton className="h-48 w-full" />
         </div>
       </div>
