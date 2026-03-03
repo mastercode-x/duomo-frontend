@@ -532,6 +532,14 @@ class MoodleApiClient {
     if (user.address) params['users[0][address]'] = user.address;
     if (user.institution) params['users[0][institution]'] = user.institution;
     if (user.department) params['users[0][department]'] = user.department;
+    
+    // Campos personalizados
+    if (user.customfields && Array.isArray(user.customfields)) {
+      user.customfields.forEach((field, index) => {
+        params[`users[0][customfields][${index}][type]`] = field.shortname;
+        params[`users[0][customfields][${index}][value]`] = field.value;
+      });
+    }
 
     await this.post('core_user_update_users', params);
     return true;
@@ -709,7 +717,52 @@ class MoodleApiClient {
   }
 
   // ============================================
-  // CALIFICACIONES
+  // MENSAJERÍA
+  // ============================================
+
+  async getConversations(userid?: number): Promise<any[]> {
+    const currentUserId = userid || this.getUserId();
+    if (!currentUserId) return [];
+    try {
+      const data = await this.request<any>('core_message_get_conversations', { userid: currentUserId });
+      return data.conversations || [];
+    } catch (error) {
+      console.warn('Error al obtener conversaciones:', error);
+      return [];
+    }
+  }
+
+  async getMessages(conversationid: number): Promise<any[]> {
+    const currentUserId = this.getUserId();
+    if (!currentUserId) return [];
+    try {
+      const data = await this.request<any>('core_message_get_conversation_messages', { 
+        currentuserid: currentUserId,
+        convid: conversationid
+      });
+      return data.messages || [];
+    } catch (error) {
+      console.warn('Error al obtener mensajes:', error);
+      return [];
+    }
+  }
+
+  async sendMessage(conversationid: number, text: string): Promise<any> {
+    const currentUserId = this.getUserId();
+    if (!currentUserId) return null;
+    try {
+      return await this.request<any>('core_message_send_messages_to_conversation', {
+        conversationid,
+        messages: [{ text }]
+      });
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // NOTIFICACIONES
   // ============================================
 
   async getUserGrades(courseid?: number, userid?: number): Promise<Grade[]> {

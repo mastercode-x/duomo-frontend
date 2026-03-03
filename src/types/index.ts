@@ -196,6 +196,8 @@ export interface CourseSetting {
 }
 
 export interface Grade {
+  userid?: number;
+  username?: string;
   courseid?: number;
   coursename?: string;
   grade?: number;

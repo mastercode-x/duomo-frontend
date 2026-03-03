@@ -7,15 +7,12 @@ import {
   BookOpen, 
   TrendingUp, 
   AlertTriangle,
-  FileText,
   ChevronRight,
-  GraduationCap,
-  CheckCircle,
-  User
+  GraduationCap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+// import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/AuthContext';
 import { moodleApi } from '@/services/moodleApi';
@@ -64,7 +61,7 @@ export function TeacherDashboard() {
     return 'Buenas noches';
   };
 
-  const formatLastAccess = (timestamp?: number) => {
+  /* const formatLastAccess = (timestamp?: number) => {
     if (!timestamp) return 'Nunca';
     const now = Math.floor(Date.now() / 1000);
     const diff = now - timestamp;
@@ -73,7 +70,7 @@ export function TeacherDashboard() {
     if (diff < 86400) return `Hace ${Math.floor(diff / 3600)}h`;
     if (diff < 604800) return `Hace ${Math.floor(diff / 86400)}d`;
     return 'Hace +7 días';
-  };
+  }; */
 
   if (isLoading) {
     return <TeacherDashboardSkeleton />;
@@ -90,7 +87,7 @@ export function TeacherDashboard() {
     );
   }
 
-  const { courses, inactiveStudents, pendingSubmissions, stats } = data;
+  const { courses, inactiveStudents, stats } = data;
 
   return (
     <div className="space-y-6">
@@ -107,21 +104,7 @@ export function TeacherDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.totalStudents}</p>
-                <p className="text-xs text-gray-500">Total Estudiantes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -145,20 +128,6 @@ export function TeacherDashboard() {
               <div>
                 <p className="text-2xl font-bold">{stats.averageProgress}%</p>
                 <p className="text-xs text-gray-500">Progreso Promedio</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <FileText className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.pendingSubmissionsCount}</p>
-                <p className="text-xs text-gray-500">Por Corregir</p>
               </div>
             </div>
           </CardContent>
@@ -200,6 +169,9 @@ export function TeacherDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-gray-900 truncate">{course.fullname}</h4>
+                        {course.summary && (
+                          <p className="text-xs text-gray-500 line-clamp-2 mt-0.5" dangerouslySetInnerHTML={{ __html: course.summary }} />
+                        )}
                         <div className="flex items-center gap-4 mt-1">
                           <span className="text-xs text-gray-500 flex items-center gap-1">
                             <Users className="w-3 h-3" />
@@ -222,110 +194,31 @@ export function TeacherDashboard() {
               )}
             </CardContent>
           </Card>
-
-          {/* Estudiantes sin actividad */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-red-600">
-                  <AlertTriangle className="w-5 h-5" />
-                  Estudiantes sin Actividad
-                </CardTitle>
-                <CardDescription>Alertas de inactividad (7+ días)</CardDescription>
-              </div>
-              <Link to="/students">
-                <Button variant="ghost" size="sm">
-                  Ver todos
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              {!Array.isArray(inactiveStudents) || inactiveStudents.length === 0 ? (
-                <div className="text-center py-6">
-                  <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
-                  <p className="text-gray-500">¡Todos los estudiantes están activos!</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {inactiveStudents.slice(0, 5).map((student) => (
-                    <div key={student.id} className="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-100">
-                      <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <User className="w-5 h-5 text-red-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900">{student.fullname}</p>
-                        <p className="text-xs text-gray-500">{student.email}</p>
-                      </div>
-                      <Badge variant="destructive" className="text-xs">
-                        {formatLastAccess(student.lastaccess)}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Entregas pendientes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[#8B9A7D]" />
-                Por Corregir
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!Array.isArray(pendingSubmissions) || pendingSubmissions.length === 0 ? (
-                <div className="text-center py-6">
-                  <CheckCircle className="w-10 h-10 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">¡Todo al día!</p>
+          {/* Estudiantes sin actividad -> Botón/Card que lleva a /statistics */}
+          <Link to="/statistics" className="block">
+            <Card className="hover:bg-red-50 transition-colors border-red-100">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-red-600 text-lg">
+                  <AlertTriangle className="w-5 h-5" />
+                  Estudiantes sin Actividad
+                </CardTitle>
+                <CardDescription>Alertas de inactividad (7+ días)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-3xl font-bold text-red-600">{inactiveStudents.length}</span>
+                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-100 p-0">
+                    Ver en estadísticas
+                    <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {pendingSubmissions.slice(0, 5).map((submission) => (
-                    <div key={submission.id} className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                      <FileText className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 text-sm truncate">{submission.name}</p>
-                        <p className="text-xs text-gray-500">{submission.coursename}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Acceso rápido */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Acceso Rápido</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link to="/students">
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="w-4 h-4 mr-2" />
-                  Mis Estudiantes
-                </Button>
-              </Link>
-              <Link to="/statistics">
-                <Button variant="outline" className="w-full justify-start">
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  Estadísticas
-                </Button>
-              </Link>
-              <Link to="/grades">
-                <Button variant="outline" className="w-full justify-start">
-                  <GraduationCap className="w-4 h-4 mr-2" />
-                  Calificaciones
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
     </div>
@@ -340,8 +233,8 @@ function TeacherDashboardSkeleton() {
         <Skeleton className="h-4 w-48 mt-2" />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[1, 2].map((i) => (
           <Card key={i}>
             <CardContent className="p-4">
               <Skeleton className="h-10 w-20" />
@@ -367,8 +260,7 @@ function TeacherDashboardSkeleton() {
           </Card>
         </div>
         <div className="space-y-4">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-32 w-full" />
         </div>
       </div>
     </div>

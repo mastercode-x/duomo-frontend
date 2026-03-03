@@ -15,9 +15,12 @@ import { Profile } from '@/pages/Profile';
 import { ProfileEdit } from '@/pages/ProfileEdit';
 import { Courses } from '@/pages/Courses';
 import { CourseDetail } from '@/pages/CourseDetail';
+import { ModuleDetail } from '@/pages/ModuleDetail';
 import { Students } from '@/pages/Students';
+import { StudentProfile } from '@/pages/StudentProfile';
 import { Statistics } from '@/pages/Statistics';
 import { Certificates } from '@/pages/Certificates';
+import { Messages } from '@/pages/Messages';
 import { Notifications } from '@/pages/Notifications';
 import { Settings } from '@/pages/Settings';
 import { Grades } from '@/pages/Grades';
@@ -191,6 +194,7 @@ function App() {
               {/* Cursos */}
               <Route path="/courses" element={<Courses />} />
               <Route path="/courses/:courseId" element={<CourseDetail />} />
+              <Route path="/courses/:courseId/modules/:moduleId" element={<ModuleDetail />} />
               
               {/* Calificaciones */}
               <Route path="/grades" element={<Grades />} />
@@ -204,9 +208,8 @@ function App() {
               {/* Configuración */}
               <Route path="/settings" element={<Settings />} />
               
-              {/* Páginas en construcción */}
-              <Route path="/calendar" element={<ComingSoonPage title="Calendario" />} />
-              <Route path="/messages" element={<ComingSoonPage title="Mensajes" />} />
+              {/* Mensajes */}
+              <Route path="/messages" element={<Messages />} />
             </Route>
           </Route>
 
@@ -214,7 +217,7 @@ function App() {
           <Route element={<TeacherRoute />}>
             <Route element={<PrivateLayout />}>
               <Route path="/students" element={<Students />} />
-              <Route path="/students/:studentId" element={<ComingSoonPage title="Perfil del Estudiante" />} />
+              <Route path="/students/:studentId" element={<StudentProfile />} />
               <Route path="/statistics" element={<Statistics />} />
               <Route path="/courses/:courseId/stats" element={<ComingSoonPage title="Estadísticas del Curso" />} />
               <Route path="/courses/:courseId/edit" element={<ComingSoonPage title="Editar Curso" />} />

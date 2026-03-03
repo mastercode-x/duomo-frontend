@@ -1,134 +1,120 @@
 // Página de Estudiantes para Profesores del Campus Duomo LMS
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Users, 
   Search, 
-  Mail, 
-  BookOpen, 
-  Clock,
-  ChevronRight,
-  Filter
+  ChevronRight, 
+  Filter, 
+  MapPin, 
+  ChevronLeft 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/context/AuthContext';
 import { moodleApi } from '@/services/moodleApi';
-import type { User, Course } from '@/types';
-
-interface StudentWithCourses extends User {
-  enrolledCourses?: Course[];
-}
+import type { User as UserType } from '@/types';
 
 export function Students() {
   const { isTeacher } = useAuth();
-  const [students, setStudents] = useState<StudentWithCourses[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [students, setStudents] = useState<UserType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState<string>('all');
+  const [selectedSucursal, setSelectedSucursal] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
 
   useEffect(() => {
     if (isTeacher) {
-      loadStudents();
+      loadData();
     }
   }, [isTeacher]);
 
-  const loadStudents = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
-      
-      // Obtener cursos del profesor
       const teacherCourses = await moodleApi.getUserCourses();
       
-      if (!Array.isArray(teacherCourses) || teacherCourses.length === 0) {
-        setStudents([]);
-        setCourses([]);
-        return;
+      if (teacherCourses.length > 0) {
+        const allStudents = await moodleApi.getAllStudents(teacherCourses);
+        setStudents(allStudents);
       }
-      
-      setCourses(teacherCourses);
-      
-      // Obtener todos los estudiantes de los cursos del profesor
-      const allStudents = await moodleApi.getAllStudents(teacherCourses);
-      
-      setStudents(allStudents);
     } catch (error) {
       console.error('Error al cargar estudiantes:', error);
-      setStudents([]);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const getCustomField = (fields: any[] | undefined, shortname: string) =>
+    fields?.find(f => f.shortname === shortname)?.value ?? '';
+
+  const sucursales = useMemo(() => {
+    const set = new Set<string>();
+    students.forEach(s => {
+      const suc = getCustomField(s.customfields, 'sucursales');
+      if (suc) set.add(suc);
+    });
+    return Array.from(set).sort();
+  }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(student => {
+      const matchesSearch = !searchQuery || 
+        student.fullname.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        student.email.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesSucursal = selectedSucursal === 'all' || 
+        getCustomField(student.customfields, 'sucursales') === selectedSucursal;
+
+      return matchesSearch && matchesSucursal;
+    });
+  }, [students, searchQuery, selectedSucursal]);
+
+  const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedSucursal]);
 
   const getInitials = (name: string) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const formatLastAccess = (timestamp?: number) => {
-    if (!timestamp) return 'Nunca';
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    
-    if (diff < 3600) return 'Hace minutos';
-    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)}h`;
-    if (diff < 604800) return `Hace ${Math.floor(diff / 86400)}d`;
-    return 'Hace +7 días';
-  };
-
-  // Filtrar estudiantes
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = 
-      student.fullname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCourse = selectedCourse === 'all' || 
-      student.enrolledCourses?.some(c => c.id.toString() === selectedCourse);
-    
-    return matchesSearch && matchesCourse;
-  });
-
-  if (!isTeacher) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <Users className="w-10 h-10 text-gray-400" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Acceso Restringido</h2>
-        <p className="text-gray-600 text-center max-w-md">
-          Esta página solo está disponible para instructores.
-        </p>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return <StudentsSkeleton />;
-  }
+  if (isLoading) return <StudentsSkeleton />;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mis Estudiantes</h1>
-          <p className="text-gray-600 mt-1">
-            {students.length} estudiante{students.length !== 1 ? 's' : ''} en total
-          </p>
+          <p className="text-gray-600">Gestiona y realiza seguimiento a tus alumnos</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Card className="px-4 py-2 flex items-center gap-2">
+            <Users className="w-4 h-4 text-[#8B9A7D]" />
+            <span className="text-sm font-bold">{students.length}</span>
+            <span className="text-xs text-gray-500">Total</span>
+          </Card>
         </div>
       </div>
 
-      {/* Filtros */}
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
+        <CardHeader>
+          <CardTitle>Listado de Estudiantes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -138,121 +124,59 @@ export function Students() {
                 className="pl-10"
               />
             </div>
-            <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-              <SelectTrigger className="w-full sm:w-64">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Filtrar por curso" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los cursos</SelectItem>
-                {courses.map(course => (
-                  <SelectItem key={course.id} value={course.id.toString()}>
-                    {course.fullname}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabla de estudiantes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Listado de Estudiantes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredStudents.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No se encontraron estudiantes
-              </h3>
-              <p className="text-gray-500">
-                {searchQuery || selectedCourse !== 'all' 
-                  ? 'Intenta con otros filtros de búsqueda'
-                  : 'Aún no tienes estudiantes matriculados en tus cursos'
-                }
-              </p>
+            <div className="flex gap-2">
+              <Select value={selectedSucursal} onValueChange={setSelectedSucursal}>
+                <SelectTrigger className="w-48">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Sucursal" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sucursales</SelectItem>
+                  {sucursales.map(suc => <SelectItem key={suc} value={suc}>{suc}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Estudiante</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Email</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Cursos</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Última Actividad</th>
-                    <th className="text-right py-3 px-4 font-medium text-gray-700">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStudents.map((student) => (
-                    <tr key={student.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={student.profileimageurl} alt={student.fullname} />
-                            <AvatarFallback className="bg-gradient-to-br from-[#8B9A7D] to-[#6B7A5D] text-white text-sm">
-                              {getInitials(student.fullname)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-gray-900">{student.fullname}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <Mail className="w-4 h-4" />
-                          <span className="truncate max-w-[200px]">{student.email}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
-                          <BookOpen className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-600">
-                            {student.enrolledCourses?.length || 0} curso(s)
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {student.enrolledCourses?.slice(0, 2).map(course => (
-                            <Badge key={course.id} variant="secondary" className="text-xs">
-                              {course.shortname || course.fullname.substring(0, 15)}
-                            </Badge>
-                          ))}
-                          {(student.enrolledCourses?.length || 0) > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{(student.enrolledCourses?.length || 0) - 2}
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Clock className="w-4 h-4 text-gray-400" />
-                          <span className={
-                            !student.lastaccess || (Math.floor(Date.now() / 1000) - student.lastaccess) > 7 * 86400
-                              ? 'text-red-600'
-                              : 'text-gray-600'
-                          }>
-                            {formatLastAccess(student.lastaccess)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Link to={`/students/${student.id}`}>
-                          <Button variant="ghost" size="sm">
-                            Ver perfil
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {paginatedStudents.map((student) => (
+              <Link key={student.id} to={`/students/${student.id}`} className="block">
+                <Card className="hover:shadow-md transition-shadow h-full border-l-4 border-l-[#8B9A7D]">
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <Avatar className="h-12 w-12 border">
+                      <AvatarImage src={student.profileimageurl} />
+                      <AvatarFallback className="bg-gray-100 text-[#8B9A7D]">
+                        {getInitials(student.fullname)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-gray-900 truncate">{student.fullname}</p>
+                      <p className="text-xs text-gray-500 truncate mb-1">{student.email}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 flex items-center gap-1">
+                          <MapPin className="w-2 h-2" />
+                          {getCustomField(student.customfields, 'sucursales') || 'S/S'}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-gray-500">Página {currentPage} de {totalPages}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -264,34 +188,10 @@ export function Students() {
 function StudentsSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-32 mt-2" />
-        </div>
+      <Skeleton className="h-8 w-48" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} className="h-24 w-full" />)}
       </div>
-
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex gap-4">
-            <Skeleton className="h-10 flex-1" />
-            <Skeleton className="h-10 w-64" />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-48" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

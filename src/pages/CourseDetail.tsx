@@ -5,26 +5,20 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   BookOpen, 
-  Clock, 
-  Users, 
   CheckCircle2, 
   PlayCircle, 
   FileText, 
   MoreVertical,
-  Edit,
   BarChart3,
   Star,
-  Share2,
-  Download,
-  MessageSquare,
   Award,
-  AlertCircle
+  AlertCircle,
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -85,9 +79,9 @@ export function CourseDetail() {
     const iconMap: Record<string, any> = {
       'resource': FileText,
       'page': BookOpen,
-      'forum': MessageSquare,
+      'forum': FileText,
       'quiz': CheckCircle2,
-      'assign': Edit,
+      'assign': FileText,
       'video': PlayCircle,
       'supervideo': PlayCircle,
       'hvp': PlayCircle,
@@ -116,15 +110,6 @@ export function CourseDetail() {
       folder: 'Carpeta',
     };
     return labels[modname] || modname;
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   };
 
   if (isLoading) {
@@ -177,9 +162,6 @@ export function CourseDetail() {
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Badge className="bg-white/20 text-white border-0">
-                  {course.categoryname || 'General'}
-                </Badge>
                 {course.completed && (
                   <Badge className="bg-green-500 text-white border-0">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -195,13 +177,13 @@ export function CourseDetail() {
               {isTeacher ? (
                 <>
                   <Button variant="secondary" asChild>
-                    <Link to={`/courses/${course.id}/edit`}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Editar Curso
+                    <Link to={`/grades?courseId=${course.id}`}>
+                      <GraduationCap className="w-4 h-4 mr-2" />
+                      Calificaciones
                     </Link>
                   </Button>
                   <Button variant="secondary" asChild>
-                    <Link to={`/courses/${course.id}/stats`}>
+                    <Link to={`/statistics?courseId=${course.id}`}>
                       <BarChart3 className="w-4 h-4 mr-2" />
                       Estadísticas
                     </Link>
@@ -220,13 +202,9 @@ export function CourseDetail() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Compartir
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Download className="w-4 h-4 mr-2" />
-                    Descargar contenido
+                  <DropdownMenuItem onClick={() => window.print()}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Imprimir página
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -236,19 +214,7 @@ export function CourseDetail() {
       </div>
 
       {/* Course Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{course.enrolledusercount || 0}</p>
-              <p className="text-xs text-gray-500">Estudiantes</p>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -259,23 +225,6 @@ export function CourseDetail() {
                 {course.sections?.reduce((acc, s) => acc + (s.modules?.length || 0), 0) || 0}
               </p>
               <p className="text-xs text-gray-500">Módulos</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-              <Clock className="w-5 h-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {course.startdate 
-                  ? Math.ceil((Date.now() / 1000 - course.startdate) / (24 * 60 * 60))
-                  : 0
-                }
-              </p>
-              <p className="text-xs text-gray-500">Días activo</p>
             </div>
           </CardContent>
         </Card>
@@ -298,10 +247,10 @@ export function CourseDetail() {
         {/* Left Column - Course Content */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="content">
-            <TabsList>
-              <TabsTrigger value="content">Contenido</TabsTrigger>
-              <TabsTrigger value="info">Información</TabsTrigger>
-              {isTeacher && <TabsTrigger value="participants">Participantes</TabsTrigger>}
+            <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 mb-4">
+              <TabsTrigger value="content" className="rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:bg-transparent">Contenido</TabsTrigger>
+              <TabsTrigger value="info" className="rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:bg-transparent">Información</TabsTrigger>
+              {isTeacher && <TabsTrigger value="participants" className="rounded-none border-b-2 border-transparent data-[state=active]:border-amber-500 data-[state=active]:bg-transparent">Participantes</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="content" className="space-y-4">
@@ -397,14 +346,12 @@ export function CourseDetail() {
                           return (
                             <div key={module.id}>
                               {isClickable ? (
-                                <a 
-                                  href={module.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
+                                <Link 
+                                  to={`/courses/${courseId}/modules/${module.id}`}
                                   className="block no-underline"
                                 >
                                   {moduleContent}
-                                </a>
+                                </Link>
                               ) : (
                                 moduleContent
                               )}
@@ -467,66 +414,9 @@ export function CourseDetail() {
                 </Button>
               )}
               <Button variant="outline" className="w-full">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Foro del Curso
-              </Button>
-              <Button variant="outline" className="w-full">
                 <Award className="w-4 h-4 mr-2" />
                 Ver Certificado
               </Button>
-            </CardContent>
-          </Card>
-
-          {/* Instructor Info */}
-          {isTeacher && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Instructor</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12">
-                    <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-600 text-white">
-                      {getInitials(course.fullname)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">Instructor del Curso</p>
-                    <p className="text-sm text-gray-500">Heladería Duomo</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Course Dates */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Fechas Importantes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {course.startdate && (
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm text-gray-500">Inicio</p>
-                    <p className="font-medium">
-                      {new Date(course.startdate * 1000).toLocaleDateString('es-ES')}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {course.enddate && (
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm text-gray-500">Fin</p>
-                    <p className="font-medium">
-                      {new Date(course.enddate * 1000).toLocaleDateString('es-ES')}
-                    </p>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -543,8 +433,8 @@ function CourseDetailSkeleton() {
       
       <Skeleton className="h-64 w-full rounded-xl" />
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {[1, 2].map((i) => (
           <Card key={i}>
             <CardContent className="p-4">
               <Skeleton className="h-10 w-20" />
@@ -565,7 +455,6 @@ function CourseDetailSkeleton() {
         </div>
         <div className="space-y-4">
           <Skeleton className="h-40 w-full" />
-          <Skeleton className="h-32 w-full" />
         </div>
       </div>
     </div>
