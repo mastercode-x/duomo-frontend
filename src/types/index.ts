@@ -491,3 +491,6 @@ export interface ThemeConfig {
   siteName: string;
   footerText?: string;
 }
+
+
+// flavor
