@@ -603,22 +603,36 @@ class MoodleApiClient {
 
   async getCourseById(courseid: number): Promise<CourseDetail | null> {
     try {
-      // Usar core_course_get_courses_by_field en lugar de core_course_get_courses
-      // porque core_course_get_courses devuelve "nopermissions" para usuarios no-admin
-      const courseInfo = await this.request<any>('core_course_get_courses_by_field', {
-        field: 'id',
-        value: courseid
-      });
+      // IMPORTANTE: NO usar core_course_get_courses_by_field (devuelve invalidresponse)
+      // Los datos del curso ya estan en memoria desde core_enrol_get_users_courses
+      // Obtener solo el contenido/modulos del curso
+      const contents = await this.getCourseContent(courseid);
       
-      // Validación defensiva
-      if (!courseInfo || !courseInfo.courses || !Array.isArray(courseInfo.courses) || courseInfo.courses.length === 0) {
+      // Obtener datos del usuario para buscar el curso en su lista
+      const userId = this.getUserId();
+      if (!userId) {
+        console.warn('No hay usuario autenticado');
         return null;
       }
       
-      // Obtener contenido/módulos del curso
-      const contents = await this.getCourseContent(courseid);
+      // Obtener cursos del usuario para encontrar el curso por ID
+      const userCourses = await this.request<any[]>('core_enrol_get_users_courses', {
+        userid: userId
+      });
       
-      return this.transformCourseDetail(courseInfo.courses[0], contents);
+      if (!Array.isArray(userCourses)) {
+        return null;
+      }
+      
+      // Buscar el curso en la lista
+      const courseData = userCourses.find(c => c.id === courseid);
+      if (!courseData) {
+        console.warn(`Curso ${courseid} no encontrado en cursos del usuario`);
+        return null;
+      }
+      
+      // Transformar con los datos del curso + contenidos
+      return this.transformCourseDetail(courseData, contents);
     } catch (error) {
       console.warn('Error al obtener curso por ID:', error);
       return null;
@@ -1433,6 +1447,7 @@ class MoodleApiClient {
           completion: mod.completion,
           completiondata: mod.completiondata,
           dates: mod.dates,
+          contents: Array.isArray(mod.contents) ? mod.contents : [],
         })) : [],
       })),
     };

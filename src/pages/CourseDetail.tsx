@@ -82,25 +82,22 @@ export function CourseDetail() {
   };
 
   const getModuleIcon = (modname: string) => {
-    switch (modname) {
-      case 'resource':
-        return FileText;
-      case 'page':
-        return BookOpen;
-      case 'forum':
-        return MessageSquare;
-      case 'quiz':
-        return CheckCircle2;
-      case 'assign':
-        return Edit;
-      case 'video':
-      case 'hvp':
-        return PlayCircle;
-      case 'certificate':
-        return Award;
-      default:
-        return FileText;
-    }
+    const iconMap: Record<string, any> = {
+      'resource': FileText,
+      'page': BookOpen,
+      'forum': MessageSquare,
+      'quiz': CheckCircle2,
+      'assign': Edit,
+      'video': PlayCircle,
+      'supervideo': PlayCircle,
+      'hvp': PlayCircle,
+      'h5pactivity': PlayCircle,
+      'certificate': Award,
+      'url': FileText,
+      'folder': BookOpen,
+      'scorm': PlayCircle,
+    };
+    return iconMap[modname] || FileText;
   };
 
   const getModuleLabel = (modname: string) => {
@@ -359,16 +356,15 @@ export function CourseDetail() {
                       <div className="space-y-2">
                         {section.modules?.map((module) => {
                           const ModuleIcon = getModuleIcon(module.modname);
-                          return (
-                            <div
-                              key={module.id}
-                              className={cn(
-                                "flex items-center gap-3 p-3 rounded-lg transition-colors",
-                                module.uservisible 
-                                  ? "hover:bg-gray-50 cursor-pointer" 
-                                  : "opacity-50 cursor-not-allowed"
-                              )}
-                            >
+                          const isClickable = module.uservisible && module.url;
+                          
+                          const moduleContent = (
+                            <div className={cn(
+                              "flex items-center gap-3 p-3 rounded-lg transition-colors w-full",
+                              isClickable 
+                                ? "hover:bg-gray-50 cursor-pointer" 
+                                : "opacity-50 cursor-not-allowed"
+                            )}>
                               <div className={cn(
                                 "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
                                 module.completiondata?.state === 1 
@@ -395,13 +391,22 @@ export function CourseDetail() {
                               {module.completiondata?.state === 1 && (
                                 <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
                               )}
-
-                              {module.modname === 'resource' && module.url && (
-                                <Button variant="ghost" size="sm" asChild>
-                                  <a href={module.url} target="_blank" rel="noopener noreferrer">
-                                    <Download className="w-4 h-4" />
-                                  </a>
-                                </Button>
+                            </div>
+                          );
+                          
+                          return (
+                            <div key={module.id}>
+                              {isClickable ? (
+                                <a 
+                                  href={module.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="block no-underline"
+                                >
+                                  {moduleContent}
+                                </a>
+                              ) : (
+                                moduleContent
                               )}
                             </div>
                           );
